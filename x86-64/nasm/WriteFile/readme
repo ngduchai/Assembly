@@ -1,0 +1,4 @@
+A simple program that open a file and write a short string into this file.
+Author: Hai Nguyen
+Language: x86 assembly
+Assembler: NASM 
