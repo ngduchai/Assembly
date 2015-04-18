@@ -1,6 +1,9 @@
 This project contain code programs that inject some "executable code" into a
 PE file.
-	./simple	Replace executable file by a simple hello world program
+	./simple	Inject a simple hello world message into a code and run 
+			this code first before the main program could start
+	./auto		Auto inject into all executable files in the same
+			directory
 
 Author: Hai Nguyen
 Language: x86 assembly

