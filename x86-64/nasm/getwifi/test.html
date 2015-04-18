@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Lab 9</title>
+		<style type="text/css">		
+			
+			label {
+				width: 100px;
+				display: inline-block;
+				text-align: right;
+				padding-right: 10px;
+			}
+			
+			input {
+				display: inline-block;
+			}
+			
+			td {
+				text-align: center;
+				min-width: 100px;
+			}
+			
+			#loading {
+				background-color: white;
+				opacity: 0.7;
+				display: none;
+				position: fixed;
+				left: 0%;
+				top: 0%;
+				z-index: 1000;
+			}
+			
+		</style>
+		
+	</head>
+	
+	<body>
+		
+	<h1>Cars</h1>
+	<div id="loading"><img src="giphy.gif"></div>
+	<div id="data"></div>
+	<p><button id="insert" onclick="insertNewRow()">Insert</button></p>
+	
+	<script src="jquery-1.9.1.min.js"></script>
+	<script>
+		
+		var uId, uName, uYear;
+		
+		$(document).ready(function() {
+			
+			$.ajax({
+				url: "data.php",
+				type: "get",
+				dataType: "html",
+				success: function(table) {
+					document.getElementById("data").innerHTML = table;
+				}
+			});
+
+			
+		});
+		
+		$(document).ajaxStart(function() {
+			$("#loading").show();
+		});
+		
+		$(document).ajaxStop(function() {
+			$("#loading").hide();
+		});
+		
+		function insertNewRow() {
+			var table = document.getElementById("cars");
+			var row = table.insertRow(-1);
+			var id = row.insertCell(0);
+			var name = row.insertCell(1);
+			var year = row.insertCell(2);
+			var option = row.insertCell(3);
+			id.innerHTML = "<input type='text' placeholder='id' id='nId'></input>";
+			name.innerHTML = "<input type='text' placeholder='name' id='nName'></input>";
+			year.innerHTML = "<input type='text' placeholder='year' id='nYear'></input>";
+			option.innerHTML = "<button onclick='addNewData()'>Submit</button>/<button onclick='cancelInsertion()'>Cancel</button>";
+			document.getElementById("insert").disabled = true;
+		}
+		
+		function addNewData() {
+			$.ajax({
+				url: "data.php",
+				type: "get",
+				data: {
+					id : $("#nId").val(),
+					name : $("#nName").val(),
+					year : $("#nYear").val(),
+					insert : 1,
+				},
+				dataType: "html",
+				success: function(table) {
+					document.getElementById("data").innerHTML = table;
+				}
+			});
+			document.getElementById("insert").disabled = false;
+			$(".modify").attr('disabled', false);
+		}
+		
+		function cancelInsertion() {
+			document.getElementById("cars").deleteRow(-1);
+			document.getElementById("insert").disabled = false;
+		}
+		
+		function modifyData(position) {
+			var i = parseInt(position.value);
+			var table = document.getElementById("cars");
+			uId = table.rows[i].cells[0].innerHTML;
+			uName = table.rows[i].cells[1].innerHTML;
+			uYear = table.rows[i].cells[2].innerHTML;
+			table.deleteRow(i);
+			var row = table.insertRow(i);
+			var idCell = row.insertCell(0);
+			var nameCell = row.insertCell(1);
+			var yearCell = row.insertCell(2);
+			var optionCell = row.insertCell(3);
+			idCell.innerHTML = "<input type='text' placeholder='id' id='nId' value='" + uId + "'></input>";
+			nameCell.innerHTML = "<input type='text' placeholder='name' id='nName' value='" + uName + "'></input>";
+			yearCell.innerHTML = "<input type='text' placeholder='year' id='nYear' value='" + uYear + "'></input>";
+			optionCell.innerHTML = "<button onclick='updateData()'>Submit</button>/<button onclick='cancelUpdation(" + i + ")'>Cancel</button>";
+			document.getElementById("insert").disabled = true;
+			$(".modify").attr('disabled', true);
+		}
+		
+		function updateData() {
+			$.ajax({
+				url: "data.php",
+				type: "get",
+				data: {
+					update: uId,
+					id: $("#nId").val(),
+					name: $("#nName").val(),
+					year: $("#nYear").val(),
+				},
+				dataType: "html",
+				success: function(data) {
+					document.getElementById("data").innerHTML = data;
+				}
+			});
+			document.getElementById("insert").disabled = false;
+			$(".modify").attr('disabled', false);
+		}
+		
+		function cancelUpdation(position) {
+			var i = parseInt(position);
+			var table = document.getElementById("cars");
+			table.deleteRow(i);
+			var row = table.insertRow(i);
+			var id = row.insertCell(0);
+			var name = row.insertCell(1);
+			var year = row.insertCell(2);
+			var option = row.insertCell(3);
+			id.innerHTML = uId;
+			name.innerHTML = uName;
+			year.innerHTML = uYear;
+			option.innerHTML = "<button class='modify'  value=\"" + i + "\" onclick=\"modifyData(this)\">Modify</button>/<button name=\"delete\" value=\"" + uId + "\" onclick=\"deleteData(this)\">Delete</button>";
+			document.getElementById("insert").disabled = false;
+			$(".modify").attr('disabled', false);
+		}
+		
+		function deleteData(row) {
+			$.ajax({
+				url: "data.php",
+				type: "get",
+				data: {
+					delete: row.value,
+				},
+				dataType: "html",
+				success: function(data) {
+					document.getElementById("data").innerHTML = data;
+				}
+			});
+			document.getElementById("insert").disabled = false;
+			$(".modify").attr('disabled', false);
+		}
+	</script>
+	
+	
+	</body>
+	
+	
+	
+</html>
